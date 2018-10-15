@@ -2,6 +2,6 @@
   "name": "blackjack-bot",
   "version": "0.0.1",
   "dependencies": {
-    "twitter": "^1.7.1"
+    "twit": "^2.2.11"
   }
 }
