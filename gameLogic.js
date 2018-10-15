@@ -1,21 +1,13 @@
 const Utils = require("./utils.js");
+var fs = require("fs");
 
 // Example userList element
-var userList = {
-  __12345__: {
-    gameRunning: true,
-    gameStatus: {
-      cardsInGame: ["AD","6C","JC","10S"],
-      dealerCards: ["AD","JC"],
-      playerCards: ["6C","10S"]
-    },
-    wins: 19,
-    loses: 15
-  }
-};
+var userList = null;
 
 function Start(Twit, Config) {
   console.log("GameLogic module is ready!");
+
+  userList = JSON.parse(fs.readFileSync(Config.twitter.userList, "utf8"));
 
   const mentionKeywords = {track: Config.twitter.mentionKeywords};
   const stream = Twit.stream("statuses/filter", mentionKeywords);
@@ -31,7 +23,7 @@ function newTweet(tweet) {
   console.log("");
   console.log("--------------------");
   console.log("--New tweet--");
-  console.log(tweet.id);
+  console.log("Tweet ID:", tweet.id);
   console.log("Text:", tweet.text);
 
   checkUser(tweet);
@@ -46,6 +38,8 @@ function newTweet(tweet) {
     stopDealingPlayer(tweet, userList[tweet.user.id]);
   } else if (Utils.checkCommand(text, "rules")) {
     rules(tweet);
+  } else if (Utils.checkCommand(text, "history")) {
+    history(tweet, userList[tweet.user.id]);
   }
   console.log("--------------------");
 }
@@ -83,18 +77,18 @@ function startGame(tweet, userData) {
     var dealerTotalValue = Utils.getTotalCardValue(userData.gameStatus.dealerCards);
     var playerTotalValue = Utils.getTotalCardValue(userData.gameStatus.playerCards);
 
-    var responseText = `My cards are ${Utils.getCardsString(dealerCards)}. Total: ${dealerTotalValue}`;
-    responseText += `\n\nYours are ${Utils.getCardsString(playerCards)}. Total: ${playerTotalValue}`;
+    var responseText = `Dealer cards are ${Utils.getCardsString(dealerCards)}. Total: ${dealerTotalValue}`;
+    responseText += `\n\nPlayer's are ${Utils.getCardsString(playerCards)}. Total: ${playerTotalValue}`;
 
     if (parseInt(dealerTotalValue) === 21 && dealerTotalValue !== playerTotalValue) {
       responseText += "\n\n\nDealer has 21 Blackjack! Dealer wins!";
-      Utils.finishGame(userData, false);
+      Utils.finishGame(userList, userData, 1);
     } else if (parseInt(playerTotalValue) === 21 && dealerTotalValue !== playerTotalValue) {
       responseText += "\n\n\nPlayer has 21 Blackjack! Player wins!";
-      Utils.finishGame(userData, true);
+      Utils.finishGame(userList, userData, 0);
     } else if (parseInt(playerTotalValue) === 21 && dealerTotalValue === playerTotalValue) {
       responseText += "\n\n\nBoth player and dealer has 21 Blackjack! It's a tie!";
-      Utils.finishGame(userData, false, true);
+      Utils.finishGame(userList, userData, 99);
     }
 
     console.log(responseText);
@@ -118,17 +112,17 @@ function playerTurn(tweet, userData) {
     var dealerTotalValue = Utils.getTotalCardValue(dealerCards);
     var playerTotalValue = Utils.getTotalCardValue(playerCards);
 
-    var responseText = `My cards are ${Utils.getCardsString(dealerCards)}. Total: ${dealerTotalValue}`;
-    responseText += `\n\nYours are ${Utils.getCardsString(playerCards)}. Total: ${playerTotalValue}`;
+    var responseText = `Dealer cards are ${Utils.getCardsString(dealerCards)}. Total: ${dealerTotalValue}`;
+    responseText += `\n\nPlayer's are ${Utils.getCardsString(playerCards)}. Total: ${playerTotalValue}`;
 
     var isDealerTurn = false;
 
-    if (playerTotalValue === 21) {
+    if (parseInt(playerTotalValue) === 21) {
       responseText += "\n\n\nPlayer has 21 Blackjack! Let's see if dealer can match it.";
       isDealerTurn = true;
     } else if (playerTotalValue > 21) {
       responseText += `\n\n\nPlayer has ${playerTotalValue} points! I am afraid the dealer won this time.`;
-      Utils.finishGame(userData, false);
+      Utils.finishGame(userList, userData, 1);
     }
 
     console.log(responseText);
@@ -155,17 +149,17 @@ function stopDealingPlayer(tweet, userData) {
     if (parseInt(dealerTotalValue) >= parseInt(playerTotalValue)) {
       if (parseInt(dealerTotalValue) > parseInt(playerTotalValue)) {
         responseText = `Player has decided to stand with ${Utils.getTotalCardValue(userData.gameStatus.playerCards)} points!\n\nPlayer has less points than dealer! Dealer won!`;
-        Utils.finishGame(userData, false);
+        Utils.finishGame(userList, userData, 1);
       } else {
         responseText = `Player has decided to stand with ${Utils.getTotalCardValue(userData.gameStatus.playerCards)} points!\n\nPlayer has the same points than dealer! It's a tie!`;
-        Utils.finishGame(userData, false, true);
+        Utils.finishGame(userList, userData, 99);
       }
     } else {
       responseText = `Player has decided to stand with ${Utils.getTotalCardValue(userData.gameStatus.playerCards)} points!\n\nStarting dealer turn now!`;
     }
 
     Utils.replyTweet(responseText, tweet, function(data) {
-      dealerTurn(data, userData);
+      if (userData.gameRunning) dealerTurn(data, userData);
     });
   } else {
     console.log("==> Game is not running!");
@@ -184,19 +178,19 @@ function dealerTurn(tweet, userData) {
   var dealerTotalValue = Utils.getTotalCardValue(dealerCards);
   var playerTotalValue = Utils.getTotalCardValue(playerCards);
 
-  var responseText = `My cards are ${Utils.getCardsString(dealerCards)}. Total: ${dealerTotalValue}`;
-  responseText += `\n\nYours are ${Utils.getCardsString(playerCards)}. Total: ${playerTotalValue}`;
+  var responseText = `Dealer cards are ${Utils.getCardsString(dealerCards)}. Total: ${dealerTotalValue}`;
+  responseText += `\n\nPlayer's are ${Utils.getCardsString(playerCards)}. Total: ${playerTotalValue}`;
 
   if (parseInt(dealerTotalValue) > 21) {
     responseText += "\n\n\nThe dealer has more than 21 points. The player won!";
-    Utils.finishGame(userData, true);
+    Utils.finishGame(userList, userData, 0);
   } else {
     if (parseInt(dealerTotalValue) > parseInt(playerTotalValue)) {
       responseText += "\n\n\nSince the dealer has more points than the player, the dealer won!";
-      Utils.finishGame(userData, false);
+      Utils.finishGame(userList, userData, 1);
     } else if (parseInt(dealerTotalValue) === parseInt(playerTotalValue)) {
       responseText += "\n\n\nSince the dealer has the same points than the player, it's a tie!";
-      Utils.finishGame(userData, false, true);
+      Utils.finishGame(userList, userData, 99);
     }
   }
 
@@ -208,6 +202,16 @@ function dealerTurn(tweet, userData) {
 function rules(tweet) {
   console.log("rules");
   Utils.replyTweet("https://www.bicyclecards.com/how-to-play/blackjack/", tweet, Utils.noop);
+}
+
+function history(tweet, userData) {
+  console.log("history");
+  var responseText = "Until now, this is the win-loss record:";
+  responseText += `\n\nWins: ${userData.wins} - Loses: ${userData.loses}`;
+
+  Utils.replyTweet(responseText, tweet, Utils.noop);
+
+  console.log(userList);
 }
 
 module.exports = {

@@ -1,3 +1,5 @@
+var fs = require("fs");
+
 var Config = null;
 var T = null;
 
@@ -21,6 +23,8 @@ function checkCommand(text, phase) {
       return checkTextInArray(text, Config.twitter.commands.stopKeywords);
     case "rules":
       return checkTextInArray(text, Config.twitter.commands.rulesKeywords);
+    case "history":
+      return checkTextInArray(text, Config.twitter.commands.historyKeywords);
   }
 }
 
@@ -150,24 +154,32 @@ function getCardValue(card) {
   }
 }
 
-function finishGame(userData, playerWon, tie) {
+function finishGame(userList, userData, gameResult) {
   userData.gameRunning = false;
   userData.gameStatus.playerCards = [];
   userData.gameStatus.dealerCards = [];
   userData.gameStatus.cardsInGame = [];
 
-  if (tie) return;
-  
-  if (playerWon) {
-    userData.gameStatus.wins += 1;
-  } else {
-    userData.gameStatus.loses += 1;
+  switch(gameResult) {
+    case 0:
+      userData.wins += 1;
+      break;
+    case 1:
+      userData.loses += 1;
+      break;
   }
+
+  // Guarda los datos en disco
+  fs.writeFile(Config.twitter.userList, JSON.stringify(userList), "utf8", function (err) {
+    if (err) {
+      return console.log(err);
+    }
+
+    console.log("User list saved");
+  });
 }
 
-function noop() {
-
-}
+function noop() {}
 
 module.exports = {
   Initialize: Initialize,
