@@ -1,1 +1,22 @@
-{"284551942":{"gameRunning":false,"gameStatus":{"cardsInGame":[],"dealerCards":[],"playerCards":[]},"wins":0,"loses":2}}
+{
+  "180314053": {
+    "gameRunning": false,
+    "gameStatus": {
+      "cardsInGame": [],
+      "dealerCards": [],
+      "playerCards": []
+    },
+    "wins": 0,
+    "loses": 1
+  },
+  "284551942": {
+    "gameRunning": false,
+    "gameStatus": {
+      "cardsInGame": [],
+      "dealerCards": [],
+      "playerCards": []
+    },
+    "wins": 2,
+    "loses": 3
+  }
+}

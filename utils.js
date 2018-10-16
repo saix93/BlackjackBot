@@ -15,6 +15,8 @@ function Initialize(twit, conf, callback) {
 // Comprueba las keywords de los comandos
 function checkCommand(text, phase) {
   switch(phase) {
+    case "help":
+      return checkTextInArray(text, Config.twitter.commands.helpKeywords);
     case "start":
       return checkTextInArray(text, Config.twitter.commands.startKeywords);
     case "continue":
@@ -45,7 +47,7 @@ function replyTweet(statusText, tweet, callback) {
     in_reply_to_status_id: tweet.id_str
   };
   
-  T.post("statuses/update", options, function(err, data, response) {
+  T.post("statuses/update", options, function(err, data) {
     callback(data);
   });
 }
@@ -85,11 +87,7 @@ function getCardsString(cards) {
   var response = "";
 
   for (var i = 0; i < cards.length; i++) {
-    if (i !== cards.length - 1) {
-      response += `${cards[i]}${cards.length > 2 && i !== cards.length - 2? " , " : ""}`;
-    } else {
-      response += ` and ${cards[i]}`;
-    }
+    response += `[${cards[i]}]`;
   }
 
   return response;
@@ -170,7 +168,7 @@ function finishGame(userList, userData, gameResult) {
   }
 
   // Guarda los datos en disco
-  fs.writeFile(Config.twitter.userList, JSON.stringify(userList), "utf8", function (err) {
+  fs.writeFile(Config.twitter.userList, JSON.stringify(userList, null, 2), "utf8", function (err) {
     if (err) {
       return console.log(err);
     }

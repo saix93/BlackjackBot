@@ -1,25 +1,34 @@
 const Utils = require("./utils.js");
 var fs = require("fs");
 
-// Example userList element
 var userList = null;
+var Config = null;
+var botId = null;
 
-function Start(Twit, Config) {
+function Start(Twit, conf) {
   console.log("GameLogic module is ready!");
 
-  userList = JSON.parse(fs.readFileSync(Config.twitter.userList, "utf8"));
+  Twit.get("users/show", {screen_name: "BjackBot"}, function(err, data) {
+    console.log("get users/show");
+    Config = conf;
+    userList = JSON.parse(fs.readFileSync(Config.twitter.userList, "utf8"));
 
-  const mentionKeywords = {track: Config.twitter.mentionKeywords};
-  const stream = Twit.stream("statuses/filter", mentionKeywords);
+    const mentionKeywords = {track: Config.twitter.mentionKeywords};
+    const stream = Twit.stream("statuses/filter", mentionKeywords);
 
-  stream.on("tweet", newTweet);
-  
-  stream.on("error", function(error) {
-    throw error;
+    stream.on("tweet", newTweet);
+    
+    stream.on("error", function(error) {
+      throw error;
+    });
+
+    botId = data.id_str;
   });
 }
 
 function newTweet(tweet) {
+  if (tweet.user.id_str === botId) return;
+
   console.log("");
   console.log("--------------------");
   console.log("--New tweet--");
@@ -30,7 +39,9 @@ function newTweet(tweet) {
 
   var text = tweet.text.toLowerCase();
 
-  if (Utils.checkCommand(text, "start")) {
+  if (Utils.checkCommand(text, "help")) {
+    help(tweet);
+  } else if (Utils.checkCommand(text, "start")) {
     startGame(tweet, userList[tweet.user.id]);
   } else if (Utils.checkCommand(text, "continue")) {
     playerTurn(tweet, userList[tweet.user.id]);
@@ -59,6 +70,39 @@ function checkUser(tweet) {
   }
 }
 
+// Displays help
+function help(tweet) {
+  console.log("help");
+  var textArray = [
+    `To start a game: ${getKeywordsFromArray(Config.twitter.commands.startKeywords)}`,
+    `\n\nTo ask for another card: ${getKeywordsFromArray(Config.twitter.commands.continueKeywords)}`,
+    `\n\nTo stand with your hand: ${getKeywordsFromArray(Config.twitter.commands.stopKeywords)}`,
+    `\n\nTo check the rules: ${getKeywordsFromArray(Config.twitter.commands.rulesKeywords)}`,
+    `\n\nTo review your record: ${getKeywordsFromArray(Config.twitter.commands.historyKeywords)}`
+  ];
+
+  var i = 0;
+  helpTweetRenderer(textArray, tweet, i);
+}
+
+function helpTweetRenderer(textArray, tweet, i) {
+  Utils.replyTweet(textArray[i], tweet, function(data) {
+    i++;
+    if (textArray[i]) helpTweetRenderer(textArray, data, i);
+  });
+}
+
+function getKeywordsFromArray(array) {
+  var response = "";
+
+  for (var i = 0; i < array.length; i++) {
+    response += `${array[i]}, `;
+  }
+
+  return response.substr(0, response.length - 2);
+}
+
+// Starts a game
 function startGame(tweet, userData) {
   if (!userData.gameRunning) {
     console.log("==> Starting game");
@@ -77,8 +121,10 @@ function startGame(tweet, userData) {
     var dealerTotalValue = Utils.getTotalCardValue(userData.gameStatus.dealerCards);
     var playerTotalValue = Utils.getTotalCardValue(userData.gameStatus.playerCards);
 
-    var responseText = `Dealer cards are ${Utils.getCardsString(dealerCards)}. Total: ${dealerTotalValue}`;
-    responseText += `\n\nPlayer's are ${Utils.getCardsString(playerCards)}. Total: ${playerTotalValue}`;
+    var responseText = `Dealer cards (${dealerTotalValue} points):`;
+    responseText += `\n${Utils.getCardsString(dealerCards)}`;
+    responseText += `\n\nPlayer cards (${playerTotalValue} points):`;
+    responseText += `\n${Utils.getCardsString(playerCards)}`;
 
     if (parseInt(dealerTotalValue) === 21 && dealerTotalValue !== playerTotalValue) {
       responseText += "\n\n\nDealer has 21 Blackjack! Dealer wins!";
@@ -99,6 +145,7 @@ function startGame(tweet, userData) {
   }
 }
 
+// Manages player's turn
 function playerTurn(tweet, userData) {
   if (userData.gameRunning) {
     console.log("==> Player turn");
@@ -112,8 +159,10 @@ function playerTurn(tweet, userData) {
     var dealerTotalValue = Utils.getTotalCardValue(dealerCards);
     var playerTotalValue = Utils.getTotalCardValue(playerCards);
 
-    var responseText = `Dealer cards are ${Utils.getCardsString(dealerCards)}. Total: ${dealerTotalValue}`;
-    responseText += `\n\nPlayer's are ${Utils.getCardsString(playerCards)}. Total: ${playerTotalValue}`;
+    var responseText = `Dealer cards (${dealerTotalValue} points):`;
+    responseText += `\n${Utils.getCardsString(dealerCards)}`;
+    responseText += `\n\nPlayer cards (${playerTotalValue} points):`;
+    responseText += `\n${Utils.getCardsString(playerCards)}`;
 
     var isDealerTurn = false;
 
@@ -135,6 +184,7 @@ function playerTurn(tweet, userData) {
   }
 }
 
+// The player asks to stand
 function stopDealingPlayer(tweet, userData) {
   if (userData.gameRunning) {
     console.log("==> Stop dealing Player.");
@@ -166,6 +216,7 @@ function stopDealingPlayer(tweet, userData) {
   }
 }
 
+// Manages dealer's turn
 function dealerTurn(tweet, userData) {
   console.log("==> Dealer turn.");
 
@@ -178,8 +229,10 @@ function dealerTurn(tweet, userData) {
   var dealerTotalValue = Utils.getTotalCardValue(dealerCards);
   var playerTotalValue = Utils.getTotalCardValue(playerCards);
 
-  var responseText = `Dealer cards are ${Utils.getCardsString(dealerCards)}. Total: ${dealerTotalValue}`;
-  responseText += `\n\nPlayer's are ${Utils.getCardsString(playerCards)}. Total: ${playerTotalValue}`;
+  var responseText = `Dealer cards (${dealerTotalValue} points):`;
+  responseText += `\n${Utils.getCardsString(dealerCards)}`;
+  responseText += `\n\nPlayer cards (${playerTotalValue} points):`;
+  responseText += `\n${Utils.getCardsString(playerCards)}`;
 
   if (parseInt(dealerTotalValue) > 21) {
     responseText += "\n\n\nThe dealer has more than 21 points. The player won!";
@@ -199,11 +252,13 @@ function dealerTurn(tweet, userData) {
   });
 }
 
+// Displays the rules
 function rules(tweet) {
   console.log("rules");
   Utils.replyTweet("https://www.bicyclecards.com/how-to-play/blackjack/", tweet, Utils.noop);
 }
 
+// Displays the win-loss record
 function history(tweet, userData) {
   console.log("history");
   var responseText = "Until now, this is the win-loss record:";
